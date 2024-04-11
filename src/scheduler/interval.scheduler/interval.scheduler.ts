@@ -1,16 +1,28 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import {
+  Injectable,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import { DiscoveryService, Reflector, MetadataScanner } from '@nestjs/core';
 import { wrap } from 'module';
 import { INTERVAL_HOST_KEY } from '../decoratos/interval-host.decorator';
 import { INTERVAL_KEY } from '../decoratos/interval.decorator';
 
 @Injectable()
-export class IntervalScheduler implements OnApplicationBootstrap {
+export class IntervalScheduler
+  implements OnApplicationBootstrap, OnApplicationShutdown
+{
+  private readonly intervals: NodeJS.Timer[] = [];
   constructor(
     private readonly discoveryService: DiscoveryService,
     private readonly reflector: Reflector,
     private readonly metadataScanner: MetadataScanner,
   ) {}
+  
+  onApplicationShutdown(signal?: string) {
+    this.intervals.forEach((interval) =>  clearInterval(interval));
+  }
+
   onApplicationBootstrap() {
     const providers = this.discoveryService.getProviders();
     providers.forEach((wrapper) => {
@@ -30,7 +42,8 @@ export class IntervalScheduler implements OnApplicationBootstrap {
         if (interval === undefined) {
           return;
         }
-        setInterval(() => instance[methodKey](), interval);
+        const intervalRef = setInterval(() => instance[methodKey](), interval);
+        this.intervals.push(intervalRef);
       });
     });
   }
